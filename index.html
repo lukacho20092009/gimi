@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shushtaka Fitness - Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .step { display: none; }
+        .step.active { display: flex; flex-direction: column; animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        
+        .progress-dot { width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0; transition: all 0.3s; cursor: pointer; }
+        .progress-dot.active { background: #3b82f6; width: 20px; border-radius: 10px; }
+        
+        .speedometer {
+            position: relative; width: 160px; height: 80px;
+            background: linear-gradient(to right, #4ade80, #facc15, #ef4444);
+            border-radius: 80px 80px 0 0; margin: 15px auto; overflow: hidden;
+        }
+        .speedometer-inner {
+            position: absolute; bottom: 0; left: 10px; right: 10px; top: 10px;
+            background: white; border-radius: 80px 80px 0 0;
+        }
+        #needle {
+            position: absolute; bottom: 0; left: 50%; width: 3px; height: 60px;
+            background: #1f2937; transform-origin: bottom center;
+            transition: transform 1.5s cubic-bezier(0.17, 0.67, 0.83, 0.67);
+            transform: rotate(-90deg); border-radius: 3px;
+        }
+        .card-opt { border: 2px solid #f1f5f9; transition: all 0.2s; background: #f8fafc; position: relative; overflow: hidden; }
+        .card-opt:active { transform: scale(0.97); border-color: #3b82f6; }
+        .illustration-box { width: 100%; height: 130px; display: flex; align-items: center; justify-content: center; background: #eff6ff; border-radius: 1.5rem; margin-bottom: 0.75rem; }
+        .back-btn { position: absolute; top: 2rem; left: 1.5rem; z-index: 50; cursor: pointer; display: none; }
+        
+        .unit-selector { 
+            display: flex; 
+            background: #f1f5f9; 
+            padding: 5px; 
+            border-radius: 1.5rem; 
+            margin-bottom: 2rem;
+            width: fit-content;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .unit-tab { 
+            padding: 8px 20px; 
+            border-radius: 1.2rem; 
+            font-size: 12px; 
+            font-weight: 800; 
+            cursor: pointer; 
+            transition: all 0.3s;
+            color: #94a3b8;
+        }
+        .unit-tab.active { 
+            background: #3b82f6; 
+            color: white; 
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .success-checkmark {
+            width: 50px; height: 50px; margin: 0 auto;
+            background: #22c55e; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 8px 15px rgba(34, 197, 94, 0.2);
+            animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+        #workout-list-container::-webkit-scrollbar { width: 4px; }
+        #workout-list-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        /* MODAL STYLES */
+        #exerciseModal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(8px); padding: 20px; }
+        .modal-content { background: white; width: 100%; max-width: 400px; border-radius: 3rem; padding: 2.5rem; position: relative; animation: modalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes modalPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-6">
+
+    <div id="exerciseModal" onclick="closeModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div id="modalData">
+                <div class="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-3xl mb-6" id="modalIcon">💪</div>
+                <h3 id="modalTitle" class="text-2xl font-black text-slate-900 mb-2"></h3>
+                <p id="modalReps" class="text-blue-600 font-bold text-sm uppercase mb-6"></p>
+                <div class="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 mb-8">
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">შესრულების წესი</p>
+                    <p id="modalDesc" class="text-slate-600 text-sm leading-relaxed"></p>
+                </div>
+                <button onclick="closeModal()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold shadow-lg active:scale-95 transition-all">გავიგე</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        
+        <div class="text-center lg:text-left space-y-6">
+            <h1 class="text-5xl lg:text-7xl font-black text-slate-900 leading-tight">
+                შექმენი შენი <span class="text-blue-600">იდეალური</span> სხეული.
+            </h1>
+            <p class="text-xl text-slate-600 max-w-lg">
+              მიიღე შენზე მორგებული ვარჯიშის გეგმა, რომელიც ყველგან მუშაობს.
+            არ აქვს მნიშვნელობა, სახლში ხარ თუ დარბაზში — ჩვენი დეტალური ინსტრუქციებით
+              შენ ყოველთვის გეცოდინება, ზუსტად რა და
+              როგორ გააკეთო მაქსიმალური შედეგისთვის. </p>
+            
+            <div class="space-y-4">
+                <div class="flex items-center gap-4 justify-center lg:justify-start">
+                    <span class="bg-blue-100 text-blue-600 p-2 rounded-lg font-bold">✓</span>
+                    <span class="text-lg font-bold text-slate-700">პერსონალური კვების რაციონი</span>
+                </div>
+                <div class="flex items-center gap-4 justify-center lg:justify-start">
+                    <span class="bg-blue-100 text-blue-600 p-2 rounded-lg font-bold">✓</span>
+                    <span class="text-lg font-bold text-slate-700">ვარჯიშის გეგმა (სახლი ან დარბაზი)</span>
+                </div>
+                <div class="flex items-center gap-4 justify-center lg:justify-start">
+                    <span class="bg-blue-100 text-blue-600 p-2 rounded-lg font-bold">✓</span>
+                    <span class="text-lg font-bold text-slate-700">შედეგი მხოლოდ 30 დღეში</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-center lg:justify-end">
+            <div class="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-sm min-h-[660px] flex flex-col justify-between border border-white relative overflow-hidden shrink-0">
+                
+                <div id="backBtn" onclick="prevStep()" class="back-btn p-2 bg-slate-50 rounded-full hover:bg-slate-100 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                </div>
+
+                <div id="steps-container" class="p-8 flex-grow flex flex-col justify-center">
+                    
+                    <div class="step active" id="step1">
+                        <h2 class="text-3xl font-black text-slate-800 text-center mb-8 leading-tight pt-6">აირჩიე<br>სქესი</h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div onclick="setGender('male')" class="cursor-pointer card-opt p-3 rounded-[2rem] flex flex-col items-center">
+                                <div class="illustration-box">
+                                    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 11C14.2091 11 16 9.20914 16 7C16 4.79086 14.2091 3 12 3C9.79086 3 8 4.79086 8 7C8 9.20914 9.79086 11 12 11Z" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M6 21V19C6 16.7909 7.79086 15 10 15H14C16.2091 15 18 16.7909 18 19V21" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                                <span class="font-bold text-slate-700">კაცი</span>
+                            </div>
+                            <div onclick="setGender('female')" class="cursor-pointer card-opt p-3 rounded-[2rem] flex flex-col items-center">
+                                <div class="illustration-box" style="background: #fdf2f8;">
+                                    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M12 11C14.2091 11 16 9.20914 16 7C16 4.79086 14.2091 3 12 3C9.79086 3 8 4.79086 8 7C8 9.20914 9.79086 11 12 11Z" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M18 21V19C18 16.7909 16.2091 15 14 15H10C7.79086 15 6 16.7909 6 19V21" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                        <path d="M12 15V21" stroke="#ec4899" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                                <span class="font-bold text-slate-700">ქალი</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step" id="step2">
+                        <h2 class="text-2xl font-black text-slate-800 mb-6 text-center pt-6">მონაცემები</h2>
+                        <div class="unit-selector">
+                            <div id="mUnit" onclick="switchUnit('metric')" class="unit-tab active">სმ / კგ</div>
+                            <div id="iUnit" onclick="switchUnit('imperial')" class="unit-tab">FT / LB</div>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="bg-slate-50 p-5 rounded-3xl border border-slate-100 focus-within:border-blue-300">
+                                <label id="heightLabel" class="text-[10px] text-slate-400 block mb-1 uppercase font-black tracking-wider">სიმაღლე (სმ)</label>
+                                <input type="number" id="height" placeholder="175" class="bg-transparent w-full outline-none text-2xl font-bold text-slate-800">
+                            </div>
+                            <div class="bg-slate-50 p-5 rounded-3xl border border-slate-100 focus-within:border-blue-300">
+                                <label id="weightLabel" class="text-[10px] text-slate-400 block mb-1 uppercase font-black tracking-wider">წონა (კგ)</label>
+                                <input type="number" id="weight" placeholder="70" class="bg-transparent w-full outline-none text-2xl font-bold text-slate-800">
+                            </div>
+                        </div>
+                        <button onclick="calculateBMI()" class="w-full mt-10 bg-slate-900 text-white py-5 rounded-3xl font-bold shadow-xl active:scale-95 transition-transform">გამოთვლა</button>
+                    </div>
+
+                    <div class="step text-center" id="step3">
+                        <h2 class="text-xs font-black text-slate-400 uppercase mb-2 tracking-widest pt-6">ანალიზი</h2>
+                        <div class="speedometer"><div class="speedometer-inner"></div><div id="needle"></div></div>
+                        <div id="bmiStatus" class="text-2xl font-black mb-1 italic">--</div>
+                        <div class="bg-blue-600 p-5 rounded-[2rem] shadow-lg mb-6 text-white mt-4">
+                            <p class="text-[9px] uppercase font-black opacity-80 mb-1">დღიური ნორმა</p>
+                            <div id="dailyCals" class="text-2xl font-black">--</div>
+                        </div>
+                        <button onclick="nextStep(4)" class="w-full bg-slate-900 text-white py-4 rounded-3xl font-bold shadow-xl">გაგრძელება</button>
+                    </div>
+
+                    <div class="step" id="step4">
+                        <h2 class="text-2xl font-black text-slate-800 mb-6 text-center pt-6">რა არის მიზანი?</h2>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div onclick="setGoal('დაკლება')" class="card-opt p-4 rounded-2xl cursor-pointer flex flex-col items-center">
+                                <span class="text-2xl mb-1">📉</span> <span class="text-[10px] font-black uppercase text-slate-600">წონის დაკლება</span>
+                            </div>
+                            <div onclick="setGoal('მომატება')" class="card-opt p-4 rounded-2xl cursor-pointer flex flex-col items-center">
+                                <span class="text-2xl mb-1">📈</span> <span class="text-[10px] font-black uppercase text-slate-600">წონის მომატება</span>
+                            </div>
+                            <div onclick="setChoice('goal', 'ძალა', 6)" class="card-opt p-4 rounded-2xl cursor-pointer flex flex-col items-center">
+                                <span class="text-2xl mb-1">💪</span> <span class="text-[10px] font-black uppercase text-slate-600">ძალა</span>
+                            </div>
+                            <div onclick="setChoice('goal', 'კარდიო', 6)" class="card-opt p-4 rounded-2xl cursor-pointer flex flex-col items-center">
+                                <span class="text-2xl mb-1">🏃‍♂️</span> <span class="text-[10px] font-black uppercase text-slate-600">კარდიო</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step" id="step5">
+                        <h2 id="targetTitle" class="text-2xl font-black text-slate-800 mb-6 text-center pt-6">სამიზნე წონა</h2>
+                        <div class="space-y-4">
+                            <div class="bg-slate-50 p-5 rounded-3xl border border-blue-100">
+                                <label class="text-[10px] text-blue-500 block mb-1 uppercase font-black tracking-wider">სასურველი წონა (კგ)</label>
+                                <input type="number" id="targetWeight" oninput="calculateRealTime()" placeholder="65" class="bg-transparent w-full outline-none text-2xl font-bold text-slate-800">
+                            </div>
+                            <div id="realTimeBox" class="bg-blue-50 p-4 rounded-2xl border border-blue-100 hidden">
+                                <p class="text-[10px] text-blue-400 uppercase font-black mb-1">რეკომენდებული დრო</p>
+                                <p id="suggestedTime" class="text-sm font-bold text-blue-700 italic">--</p>
+                            </div>
+                        </div>
+                        <button id="confirmTargetBtn" onclick="nextStep(6)" class="w-full mt-10 bg-slate-900 text-white py-5 rounded-3xl font-bold shadow-xl opacity-50 cursor-not-allowed" disabled>დადასტურება</button>
+                    </div>
+
+                    <div class="step" id="step6">
+                        <h2 class="text-2xl font-black text-slate-800 mb-8 text-center pt-6">სად ივარჯიშებ?</h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div onclick="setChoice('location', 'სახლი', 7)" class="card-opt p-6 rounded-[2rem] flex flex-col items-center cursor-pointer">
+                                <span class="text-4xl mb-2">🏠</span>
+                                <span class="font-bold text-slate-700 uppercase text-[10px]">სახლი</span>
+                            </div>
+                            <div onclick="setChoice('location', 'დარბაზი', 7)" class="card-opt p-6 rounded-[2rem] flex flex-col items-center cursor-pointer">
+                                <span class="text-4xl mb-2">🏋️‍♂️</span>
+                                <span class="font-bold text-slate-700 uppercase text-[10px]">დარბაზი</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="step -m-8" id="step7">
+                        <div class="bg-slate-900 pt-10 pb-8 px-8 rounded-b-[2.5rem] text-center shadow-xl relative">
+                            <div class="success-checkmark mb-4">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            </div>
+                            <h2 class="text-white text-2xl font-black italic">გეგმა მზად არის!</h2>
+                        </div>
+
+                        <div class="p-8 -mt-4">
+                            <div class="bg-white p-5 rounded-[2rem] shadow-lg border border-slate-50 space-y-3 mb-6">
+                                <div class="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl">
+                                    <div class="text-lg">🎯</div>
+                                    <div>
+                                        <p class="text-[9px] text-slate-400 font-bold uppercase">მიზანი</p>
+                                        <p id="resGoal" class="text-xs font-black text-slate-800"></p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl">
+                                    <div class="text-lg">⚖️</div>
+                                    <div>
+                                        <p class="text-[9px] text-slate-400 font-bold uppercase">პროგნოზი</p>
+                                        <p id="resWeightInfo" class="text-xs font-black text-slate-800"></p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl">
+                                    <div class="text-lg">📍</div>
+                                    <div>
+                                        <p class="text-[9px] text-slate-400 font-bold uppercase">ლოკაცია</p>
+                                        <p id="resLoc" class="text-xs font-black text-slate-800"></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button onclick="showFinalWorkout()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-[1.8rem] font-black text-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3">
+                                <span>მიიღე გეგმა</span>
+                                <span class="bg-blue-500 px-2.5 py-0.5 rounded-full text-xs">10₾</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="step -m-8" id="step8">
+                        <div class="bg-slate-900 pt-8 pb-6 px-8 rounded-b-[2rem] text-center shadow-lg">
+                            <h2 class="text-white text-xl font-black uppercase tracking-wider">პერსონალური გეგმა</h2>
+                            <p class="text-blue-400 text-[10px] font-bold mt-1" id="workoutSubTitle"></p>
+                        </div>
+                        
+                        <div class="p-6 space-y-6 overflow-y-auto max-h-[480px]" id="workout-list-container">
+                            <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                                <h3 class="text-[10px] font-black text-blue-600 uppercase mb-3">კვების რეკომენდაცია</h3>
+                                <div class="grid grid-cols-3 gap-2 text-center">
+                                    <div class="bg-white p-2 rounded-xl">
+                                        <p class="text-[8px] text-slate-400 font-bold">ცილა</p>
+                                        <p id="protein" class="text-xs font-black text-slate-800">--</p>
+                                    </div>
+                                    <div class="bg-white p-2 rounded-xl">
+                                        <p class="text-[8px] text-slate-400 font-bold">ცხიმი</p>
+                                        <p id="fat" class="text-xs font-black text-slate-800">--</p>
+                                    </div>
+                                    <div class="bg-white p-2 rounded-xl">
+                                        <p class="text-[8px] text-slate-400 font-bold">ნახშირ.</p>
+                                        <p id="carbs" class="text-xs font-black text-slate-800">--</p>
+                                    </div>
+                                </div>
+                                <p id="calNote" class="text-[9px] text-blue-500 mt-3 italic font-medium"></p>
+                            </div>
+
+                            <div id="workout-items" class="space-y-3">
+                                </div>
+                        </div>
+
+                        <div class="p-6 pt-2">
+                            <button onclick="window.print()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all">გადმოწერე PDF</button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div id="footer-dots" class="flex justify-center gap-2 pb-8">
+                    <div onclick="goToStep(1)" class="progress-dot active"></div>
+                    <div onclick="goToStep(2)" class="progress-dot"></div>
+                    <div onclick="goToStep(3)" class="progress-dot"></div>
+                    <div onclick="goToStep(4)" class="progress-dot"></div>
+                    <div onclick="goToStep(5)" class="progress-dot"></div>
+                    <div onclick="goToStep(6)" class="progress-dot"></div>
+                    <div onclick="goToStep(7)" class="progress-dot"></div>
+                    <div onclick="goToStep(8)" class="progress-dot"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // UPDATED EXERCISE DATABASE WITH DETAILS
+const exerciseDB = [
+    // === მკერდი (CHEST) ===
+    { name: "Bench Press", reps: "4 x 10", goal: "მომატება", loc: "დარბაზი", gen: "male", icon: "🏋️‍♂️", desc: "შტანგის ჟიმი წოლჭიმში. ბაზისური ვარჯიში მკერდის მასისთვის." },
+    { name: "Incline Dumbbell Press", reps: "3 x 12", goal: "მომატება", loc: "დარბაზი", gen: "both", icon: "📐", desc: "ჰანტელების ჟიმი დახრილ სკამზე. ზედა მკერდის ფორმირებისთვის." },
+    { name: "Chest Flyes", reps: "3 x 15", goal: "both", loc: "დარბაზი", gen: "both", icon: "🦋", desc: "ჰანტელების გაშლა გვერდებზე. ჭიმავს მკერდის ბოჭკოებს." },
+    { name: "Push-ups (Standard)", reps: "4 x 20", goal: "both", loc: "სახლი", gen: "both", icon: "💪", desc: "კლასიკური აზიდვები. იატაკიდან სხეულის აწევა ხელების მეშვეობით." },
+    { name: "Diamond Push-ups", reps: "3 x 12", goal: "მომატება", loc: "სახლი", gen: "male", icon: "💎", desc: "ხელები რომბისებურად. აქცენტი ტრიცეფსზე და მკერდის შუა ნაწილზე." },
+    { name: "Dips (ორძელი)", reps: "3 x MAX", goal: "მომატება", loc: "both", gen: "male", icon: "⛓️", desc: "აზიდვები ორძელზე. ქვედა მკერდის და ტრიცეფსის იდეალური ვარჯიში." },
+    { name: "Cable Crossover", reps: "3 x 15", goal: "დაკლება", loc: "დარბაზი", gen: "both", icon: "❌", desc: "ტროსების მოზიდვა მკერდის წინ. საუკეთესოა კუნთის გამოკვეთვისთვის." },
+    { name: "Decline Push-ups", reps: "3 x 15", goal: "მომატება", loc: "სახლი", gen: "male", icon: "📉", desc: "ფეხები სკამზე, ხელები იატაკზე. ზედა მკერდის დატვირთვა სახლის პირობებში." },
+    { name: "Wide Push-ups", reps: "3 x 15", goal: "both", loc: "სახლი", gen: "both", icon: "👐", desc: "ფართო აზიდვები მკერდის გარეთა ნაწილის გასაშლელად." },
+    { name: "Pec Deck Machine", reps: "3 x 12", goal: "both", loc: "დარბაზი", gen: "both", icon: "🤖", desc: "მკერდის შეკუმშვა ტრენაჟორზე. იზოლირებული მუშაობა კუნთზე." },
+
+    // === ზურგი (BACK) ===
+    { name: "Deadlift", reps: "3 x 8", goal: "მომატება", loc: "დარბაზი", gen: "male", icon: "🏗️", desc: "შტანგის ამოწევა იატაკიდან. მთელი სხეულის სიმძლავრის საძირკველი." },
+    { name: "Pull-ups", reps: "4 x MAX", goal: "მომატება", loc: "both", gen: "male", icon: "🆙", desc: "ტურნიკზე აზიდვა. ზურგის სიგანის და V-ფორმის გარანტი." },
+    { name: "Lat Pulldown", reps: "4 x 12", goal: "both", loc: "დარბაზი", gen: "both", icon: "👐", desc: "ზედა ბლოკის ჩამოწევა მკერდამდე. ტურნიკის ალტერნატივა." },
+    { name: "Seated Row", reps: "3 x 12", goal: "both", loc: "დარბაზი", gen: "both", icon: "🚣", desc: "ჰორიზონტალური ბლოკის მიზიდვა მუცელთან. ზურგის სისქისთვის." },
+    { name: "Bent Over Row", reps: "4 x 10", goal: "მომატება", loc: "დარბაზი", gen: "male", icon: "🛶", desc: "დახრილ მდგომარეობაში შტანგის მიზიდვა. უძლიერესი ვარჯიში ზურგისთვის." },
+    { name: "Superman", reps: "3 x 20", goal: "both", loc: "სახლი", gen: "both", icon: "🦸", desc: "მუცელზე წოლისას ხელ-ფეხის აწევა. წელისა და ხერხემლის გამაგრება." },
+    { name: "Single Arm DB Row", reps: "3 x 12", goal: "both", loc: "both", gen: "both", icon: "💪", desc: "ჰანტელის მიზიდვა ცალი ხელით. ზურგის კუნთის სრული გაჭიმვა." },
+    { name: "T-Bar Row", reps: "3 x 10", goal: "მომატება", loc: "დარბაზი", gen: "male", icon: "🔩", desc: "T-ღერძის მიზიდვა. ძველი სკოლის ვარჯიში სქელი ზურგისთვის." },
+    { name: "Face Pulls", reps: "4 x 15", goal: "both", loc: "დარბაზი", gen: "both", icon: "🎭", desc: "თოკის მოზიდვა სახესთან. მხრების უკანა ნაწილის და პოზის ვარჯიში." },
+    { name: "Reverse Flyes", reps: "3 x 15", goal: "both", loc: "both", gen: "both", icon: "🦅", desc: "ხელების გაქნევა უკან დახრილში. უკანა დელტების იზოლაცია." },
+
+    // === ფეხები (LEGS) ===
+    { name: "Barbell Squats", reps: "4 x 10", goal: "მომატება", loc: "დარბაზი", gen: "male", icon: "🏋️", desc: "შტანგით ჩაჯდომა. ფეხების კუნთების და ზრდის ჰორმონის სტიმულატორი." },
+    { name: "Leg Press", reps: "4 x 12", goal: "მომატება", loc: "დარბაზი", gen: "both", icon: "🚜", desc: "ფეხებით პლატფორმის წნეხი. უსაფრთხო და ეფექტური მასისთვის." },
+    { name: "Walking Lunges", reps: "3 x 20 ნაბიჯი", goal: "both", loc: "both", gen: "both", icon: "🚶", desc: "ნაბიჯები ჩაჯდომით. დუნდულების და ფეხების საუკეთესო ფორმა." },
+    { name: "Leg Extension", reps: "3 x 15", goal: "both", loc: "დარბაზი", gen: "both", icon: "🦵", desc: "ფეხების გაშლა ტრენაჟორზე. წინა ბარძაყის გამოკვეთა." },
+    { name: "Leg Curl", reps: "3 x 12", goal: "both", loc: "დარბაზი", gen: "both", icon: "🔄", desc: "ფეხების მოხრა. ბარძაყის უკანა კუნთის დამუშავება." },
+    { name: "Calf Raises", reps: "4 x 20", goal: "both", loc: "both", gen: "both", icon: "🦶", desc: "წვერებზე აწევა. წვივის კუნთების განვითარება." },
+    { name: "Bulgarian Split Squats", reps: "3 x 12", goal: "მომატება", loc: "სახლი", gen: "both", icon: "🏠", desc: "ცალი ფეხი სკამზე, მეორეთი ჩაჯდომა. რთული და ეფექტური." },
+    { name: "Goblet Squats", reps: "3 x 15", goal: "both", loc: "both", gen: "both", icon: "🏆", desc: "ჰანტელის წინ ჭერით ჩაჯდომა. ზურგის დაცვა და ფეხების მუშაობა." },
+    { name: "Glute Bridge", reps: "3 x 20", goal: "both", loc: "სახლი", gen: "female", icon: "🍑", desc: "მენჯის აწევა წოლით მდგომარეობაში. დუნდულების იზოლაცია." },
+    { name: "Wall Sit", reps: "3 x 1 წუთი", goal: "both", loc: "სახლი", gen: "both", icon: "🧱", desc: "კედელთან 'სკამზე' ჯდომა. კუნთის სტატიკური გამძლეობა." },
+
+    // === მხრები (SHOULDERS) ===
+    { name: "Overhead Press", reps: "4 x 10", goal: "მომატება", loc: "დარბაზი", gen: "male", icon: "⬆️", desc: "შტანგის აწევა თავზე ზემოთ. განიერი მხრების საფუძველი." },
+    { name: "Lateral Raises", reps: "4 x 15", goal: "both", loc: "both", gen: "both", icon: "🦅", desc: "ჰანტელების განზიდვა გვერდებზე. მხრის შუა თავის იზოლაცია." },
+    { name: "Front Raises", reps: "3 x 12", goal: "both", loc: "both", gen: "both", icon: "🦯", desc: "ჰანტელების აწევა წინ. მხრის წინა ნაწილის ფორმირება." },
+    { name: "Arnold Press", reps: "3 x 10", goal: "მომატება", loc: "დარბაზი", gen: "male", icon: "🕶️", desc: "ჰანტელების ჟიმი ტრიალით. სრული დატვირთვა დელტებისთვის." },
+    { name: "Shrugs", reps: "4 x 15", goal: "მომატება", loc: "both", gen: "male", icon: "🤷‍♂️", desc: "მხრების აჩეჩვა სიმძიმეებით. ტრაპეციული კუნთების ზრდა." },
+    { name: "Upright Row", reps: "3 x 12", goal: "both", loc: "დარბაზი", gen: "male", icon: "🏹", desc: "შტანგის მიზიდვა ნიკაპთან. მხრების და ტრაპეციის კომბინაცია." },
+
+    // === ხელები (ARMS) ===
+    { name: "Bicep Curls (DB)", reps: "3 x 12", goal: "both", loc: "both", gen: "both", icon: "💪", desc: "ბიცეფსის მოხრა ჰანტელებით. მკლავის მოცულობისთვის." },
+    { name: "Hammer Curls", reps: "3 x 12", goal: "მომატება", loc: "both", gen: "both", icon: "🔨", desc: "ჩაქუჩისებრი მოხრა. ბიცეფსის სისქე და წინამხარი." },
+    { name: "Tricep Pushdown", reps: "3 x 15", goal: "both", loc: "დარბაზი", gen: "both", icon: "🔽", desc: "ტროსის დაწევა ქვევით. ტრიცეფსის იზოლირებული დამუშავება." },
+    { name: "Skull Crushers", reps: "3 x 10", goal: "მომატება", loc: "დარბაზი", gen: "male", icon: "💀", desc: "შტანგის დაშვება შუბლთან წოლისას. ტრიცეფსის მასის ვარჯიში." },
+    { name: "Concentration Curl", reps: "3 x 12", goal: "both", loc: "both", gen: "both", icon: "🎯", desc: "იზოლირებული მოხრა ჯდომისას. ბიცეფსის პიკისთვის." },
+    { name: "Overhead Extension", reps: "3 x 12", goal: "both", loc: "both", gen: "both", icon: "🙋", desc: "ჰანტელის აწევა თავის უკან. ტრიცეფსის გრძელი თავის ჭიმვა." },
+
+    // === პრესი (ABS) ===
+    { name: "Crunches", reps: "4 x 25", goal: "both", loc: "სახლი", gen: "both", icon: "🥨", desc: "მუცლის ზედა პრესი. მოკლე ამპლიტუდის მოხრა." },
+    { name: "Leg Raises", reps: "4 x 15", goal: "both", loc: "both", gen: "both", icon: "📉", desc: "ფეხების აწევა წოლისას. ქვედა მუცლის კუნთებისთვის." },
+    { name: "Plank", reps: "3 x 1 წუთი", goal: "both", loc: "both", gen: "both", icon: "🧱", desc: "სტატიკური პოზიცია. მთელი კორპუსის გაძლიერება." },
+    { name: "Russian Twist", reps: "3 x 40", goal: "დაკლება", loc: "სახლი", gen: "both", icon: "🌪️", desc: "სხეულის ბრუნი გვერდებზე. გვერდითი პრესი." },
+    { name: "Hanging Leg Raise", reps: "3 x 12", goal: "both", loc: "დარბაზი", gen: "male", icon: "🐒", desc: "ტურნიკზე დაკიდებული ფეხების აწევა. უძლიერესი ვარჯიში პრესისთვის." },
+    { name: "Bicycle Crunches", reps: "3 x 20", goal: "დაკლება", loc: "სახლი", gen: "both", icon: "🚲", desc: "ველოსიპედისებრი მოძრაობა მუცლის კუნთებით." },
+
+    // === კარდიო (CARDIO) ===
+    { name: "Burpees", reps: "3 x 15", goal: "დაკლება", loc: "სახლი", gen: "both", icon: "💥", desc: "ნახტომი, ჩაჯდომა, აზიდვა. ყველაზე ინტენსიური კარდიო." },
+    { name: "Jumping Jacks", reps: "4 x 1 წუთი", goal: "დაკლება", loc: "სახლი", gen: "both", icon: "🏃", desc: "ხტომები ხელ-ფეხის გაშლით. კალორიების წვა." },
+    { name: "Mountain Climbers", reps: "3 x 45 წამი", goal: "დაკლება", loc: "სახლი", gen: "both", icon: "⛰️", desc: "მთამსვლელის იმიტაცია პლანკაში. პულსის აწევა." },
+    { name: "High Knees", reps: "3 x 1 წუთი", goal: "დაკლება", loc: "სახლი", gen: "both", icon: "🦵", desc: "ადგილზე სირბილი მუხლების მაღალი აწევით." },
+    { name: "Treadmill Run", reps: "20 წუთი", goal: "დაკლება", loc: "დარბაზი", gen: "both", icon: "🏃‍♂️", desc: "სირბილი ბილიკზე. გამძლეობის და გულ-სისხლძარღვთა სისტემისთვის." },
+    { name: "Jump Rope", reps: "5 x 2 წუთი", goal: "დაკლება", loc: "both", gen: "both", icon: "➰", desc: "თოკზე ხტომა. საუკეთესოა კოორდინაციისთვის და წონის კლებისთვის." },
+    { name: "Boxing Shadows", reps: "3 x 3 წუთი", goal: "დაკლება", loc: "სახლი", gen: "both", icon: "🥊", desc: "ჩრდილთან კრივი. ინტენსიური მოძრაობა ხელებით და ფეხებით." },
+    { name: "Stair Climber", reps: "15 წუთი", goal: "დაკლება", loc: "დარბაზი", gen: "both", icon: "🪜", desc: "კიბის ტრენაჟორი. დუნდულების და კარდიოს იდეალური მიქსი." },
+    { name: "Battle Ropes", reps: "5 x 30 წამი", goal: "დაკლება", loc: "დარბაზი", gen: "male", icon: "➰", desc: "მძიმე თოკების ქნევა. მხრების და გულის მუშაობა." },
+    { name: "Swimming", reps: "30 წუთი", goal: "both", loc: "დარბაზი", gen: "both", icon: "🏊", desc: "ცურვა. სხეულის ყველა კუნთის ერთდროული მუშაობა." },
+    { name: "Cycling", reps: "30 წუთი", goal: "both", loc: "both", gen: "both", icon: "🚲", desc: "ველოსიპედით სიარული. ფეხების და გამძლეობის ვარჯიში." },
+    { name: "Elliptical", reps: "20 წუთი", goal: "დაკლება", loc: "დარბაზი", gen: "female", icon: "🎿", desc: "ელიფსური ტრენაჟორი. სახსრებისთვის უსაფრთხო კარდიო." }
+];
+
+        let currentStep = 1;
+        let unitSystem = 'metric'; 
+        let userData = { gender: '', height: 0, weight: 0, goal: '', location: '', targetWeight: 0, months: 1, baseCals: 0 };
+
+        function setGender(g) { userData.gender = g; nextStep(2); }
+
+        function switchUnit(system) {
+            if (unitSystem === system) return;
+            const hInput = document.getElementById('height');
+            const wInput = document.getElementById('weight');
+            let hVal = parseFloat(hInput.value);
+            let wVal = parseFloat(wInput.value);
+
+            if (system === 'imperial') {
+                if (hVal) hInput.value = (hVal / 30.48).toFixed(2);
+                if (wVal) wInput.value = (wVal * 2.20462).toFixed(1);
+                document.getElementById('heightLabel').innerText = "სიმაღლე (FT)";
+                document.getElementById('weightLabel').innerText = "წონა (LB)";
+            } else {
+                if (hVal) hInput.value = Math.round(hVal * 30.48);
+                if (wVal) wInput.value = Math.round(wVal / 2.20462);
+                document.getElementById('heightLabel').innerText = "სიმაღლე (სმ)";
+                document.getElementById('weightLabel').innerText = "წონა (კგ)";
+            }
+            unitSystem = system;
+            document.getElementById('mUnit').classList.toggle('active');
+            document.getElementById('iUnit').classList.toggle('active');
+        }
+
+        function calculateBMI() {
+            let h = parseFloat(document.getElementById('height').value);
+            let w = parseFloat(document.getElementById('weight').value);
+            if(!h || !w) return;
+            let mH = unitSystem === 'metric' ? h : h * 30.48;
+            let mW = unitSystem === 'metric' ? w : w / 2.20462;
+            userData.height = mH; userData.weight = mW;
+            let bmi = (mW / ((mH/100)**2)).toFixed(1);
+            let bmr = (10 * mW) + (6.25 * mH) - (5 * 25) + (userData.gender === 'male' ? 5 : -161);
+            userData.baseCals = Math.round(bmr * 1.2);
+            document.getElementById('bmiStatus').innerText = bmi < 18.5 ? "ნაკლებობა" : bmi <= 25 ? "ნორმა" : "ჭარბი წონა";
+            document.getElementById('dailyCals').innerText = userData.baseCals + " კკალ";
+            nextStep(3);
+            setTimeout(() => {
+                let rot = Math.max(-90, Math.min(90, (bmi - 22) * 10));
+                document.getElementById('needle').style.transform = `rotate(${rot}deg)`;
+            }, 100);
+        }
+
+        function setGoal(goal) {
+            userData.goal = goal;
+            document.getElementById('targetTitle').innerText = goal === 'დაკლება' ? "რამდენის დაკლება გსურს?" : "რამდენის მომატება გსურს?";
+            nextStep(5);
+        }
+
+        function calculateRealTime() {
+            let target = parseFloat(document.getElementById('targetWeight').value);
+            let current = userData.weight;
+            let diff = Math.abs(current - target);
+            let infoBox = document.getElementById('realTimeBox');
+            let timeText = document.getElementById('suggestedTime');
+            let btn = document.getElementById('confirmTargetBtn');
+
+            if (target > 0 && diff > 0) {
+                if ((userData.goal === 'დაკლება' && target >= current) || (userData.goal === 'მომატება' && target <= current)) {
+                    infoBox.classList.remove('hidden');
+                    timeText.innerText = "შეიყვანეთ სწორი სამიზნე!";
+                    btn.disabled = true;
+                    btn.classList.add('opacity-50', 'cursor-not-allowed');
+                    return;
+                }
+                let months = Math.ceil(diff / 3.2); 
+                userData.months = months;
+                userData.targetWeight = target;
+                infoBox.classList.remove('hidden');
+                timeText.innerText = `ამ შედეგისთვის დაგჭირდებათ დაახლოებით ${months} თვე.`;
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                infoBox.classList.add('hidden');
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function setChoice(type, val, next) {
+            userData[type] = val;
+            if(type === 'location') {
+                document.getElementById('resGoal').innerText = userData.goal;
+                document.getElementById('resLoc').innerText = userData.location;
+                if(userData.targetWeight) {
+                    let diff = Math.round(Math.abs(userData.weight - userData.targetWeight));
+                    let prefix = userData.goal === 'მომატება' ? '+' : '-';
+                    document.getElementById('resWeightInfo').innerText = `${prefix} ${diff} კგ / ${userData.months} თვეში`;
+                } else {
+                    document.getElementById('resWeightInfo').innerText = "შენარჩუნება";
+                }
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, zIndex: 9999 });
+            }
+            nextStep(next);
+        }
+
+        function openModal(name) {
+            const ex = exerciseDB.find(e => e.name === name);
+            if(!ex) return;
+            document.getElementById('modalTitle').innerText = ex.name;
+            document.getElementById('modalReps').innerText = ex.reps;
+            document.getElementById('modalDesc').innerText = ex.desc;
+            document.getElementById('modalIcon').innerText = ex.icon;
+            document.getElementById('exerciseModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('exerciseModal').style.display = 'none';
+        }
+
+        function showFinalWorkout() {
+            const listContainer = document.getElementById('workout-items');
+            listContainer.innerHTML = '';
+            
+            let targetCals = userData.baseCals;
+            let note = "";
+            if(userData.goal === 'დაკლება') {
+                targetCals -= 400;
+                note = "დეფიციტი: სწრაფი კლებისთვის";
+            } else if(userData.goal === 'მომატება') {
+                targetCals += 400;
+                note = "ჭარბი: კუნთის ზრდისთვის";
+            } else {
+                note = "ბალანსი: წონის შესანარჩუნებლად";
+            }
+
+            document.getElementById('protein').innerText = Math.round(userData.weight * 2) + "გ";
+            document.getElementById('fat').innerText = Math.round(userData.weight * 0.8) + "გ";
+            document.getElementById('carbs').innerText = Math.round((targetCals - (userData.weight * 2 * 4) - (userData.weight * 0.8 * 9)) / 4) + "გ";
+            document.getElementById('calNote').innerText = `დღიური ლიმიტი: ${targetCals} კკალ. ${note}`;
+
+            const filtered = exerciseDB.filter(ex => 
+                (ex.loc === userData.location || ex.loc === 'both') && 
+                (ex.goal === userData.goal || ex.goal === 'both' || userData.goal === 'კარდიო' || userData.goal === 'ძალა') &&
+                (ex.gen === userData.gender || ex.gen === 'both')
+            );
+
+            document.getElementById('workoutSubTitle').innerText = `${userData.location} | ${userData.goal}`;
+
+            filtered.forEach(ex => {
+                listContainer.innerHTML += `
+                    <div onclick="openModal('${ex.name}')" class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center shadow-sm cursor-pointer hover:border-blue-300 transition-all active:scale-95">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-xl">${ex.icon}</div>
+                            <div>
+                                <p class="font-black text-slate-800 text-sm">${ex.name}</p>
+                                <p class="text-[10px] text-blue-600 font-bold uppercase">${ex.reps}</p>
+                            </div>
+                        </div>
+                        <div class="text-slate-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                        </div>
+                    </div>
+                `;
+            });
+
+            nextStep(8);
+        }
+
+        function nextStep(s) { currentStep = s; updateUI(); }
+        function prevStep() { if(currentStep > 1) { currentStep--; updateUI(); } }
+        function goToStep(s) { if(s < currentStep) { currentStep = s; updateUI(); } }
+
+        function updateUI() {
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            document.getElementById('step' + currentStep).classList.add('active');
+            document.getElementById('backBtn').style.display = (currentStep > 1 && currentStep < 8) ? 'block' : 'none';
+            
+            const dots = document.querySelectorAll('.progress-dot');
+            dots.forEach((dot, idx) => {
+                dot.classList.toggle('active', idx + 1 === currentStep);
+            });
+        }
+    </script>
+</body>
+</html>
